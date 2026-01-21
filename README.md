@@ -10,7 +10,8 @@ Unlike static priority lists, SeqDef scores are dynamic: if a close relative of 
 - **Automated Calibration:** Includes two algorithms to automatically select the optimal decay parameter (`lambda`):
   - `auto_max`: Maximizes the variance of the statistic to ensure discriminatory power.
   - `by_genus`: Anchors the decay rate to the median evolutionary distance between congeneric species.
-- **Composite Prioritization:** Includes tools (`calc_priority`) to combine SeqDef scores with external variables (e.g., IUCN Red List status, economic value).
+  - A manual value for `lambda` is also an option by providing a numeric value
+- **Composite Prioritization:** Includes the function (`calc_priority`) to combine SeqDef scores with external variables (e.g., IUCN Red List status, economic value).
 
 ## Installation
 
