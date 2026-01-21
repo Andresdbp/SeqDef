@@ -1,6 +1,5 @@
 # SeqDef: Sequencing Deficiency & Prioritization
 
-[![R-CMD-check](https://github.com/Andresdbp/SeqDef/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/Andresdbp/SeqDef/actions/workflows/R-CMD-check.yaml)
 **SeqDef** is an R package designed to prioritize taxa for genomic sequencing initiatives (such as the Earth BioGenome Project). It quantifies the marginal genomic value of individual taxa by weighting the availability of sequence resources in related species using a distance-decay kernel.
 
 Unlike static priority lists, SeqDef scores are dynamic: if a close relative of a target species is sequenced, the target's priority score decreases to reflect the shared information redundancy.
