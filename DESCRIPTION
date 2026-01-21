@@ -1,17 +1,29 @@
 Package: SeqDef
-Title: Calculate Sequencing Deficiency Scores
-Version: 0.1
+Title: Calculate Sequencing Deficiency Scores for Phylogenetic Trees
+Version: 0.1.0
 Authors@R: 
-    person("Andres", "Barboza", "andresdbp00@gmail.com", role = c("aut", "cre"))
-Description: Calculates sequencing deficiency scores by integrating phylogenetic 
-    branch lengths and tip data. It computes a concordance metric based on 
-    cophenetic distances and scales the resulting scores.
-License: PENDING
+    person("Your", "Name", , "your.email@example.com", role = c("aut", "cre"))
+Description: Calculates the SeqDef statistic to quantify the marginal genomic 
+    value of individual taxa by weighting the availability of sequence resources 
+    in related species using a distance-decay kernel. Includes tools for 
+    prioritization and sensitivity analysis.
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
+RoxygenNote: 7.3.1
 Imports: 
-    ape
+    ape,
+    stats
 Suggests: 
-    testthat
+    knitr,
+    rmarkdown,
+    testthat,
+    ggplot2,
+    ggtree,
+    tidyverse,
+    patchwork,
+    phangorn,
+    iucnredlist,
+    rentrez
+VignetteBuilder: knitr

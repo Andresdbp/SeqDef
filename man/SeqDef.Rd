@@ -4,7 +4,7 @@
 \alias{SeqDef}
 \title{Calculate Sequencing Deficiency (SeqDef) Scores}
 \usage{
-SeqDef(tree, df, data.col = 2, invert = FALSE, scale = TRUE)
+SeqDef(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda = "auto_max")
 }
 \arguments{
 \item{tree}{A phylogenetic tree object of class \code{phylo} (from the \code{ape} package).}
@@ -13,29 +13,42 @@ SeqDef(tree, df, data.col = 2, invert = FALSE, scale = TRUE)
 
 \item{data.col}{An integer or character string indicating the column index or name in \code{df} containing the numeric data to analyze. Defaults to 2.}
 
-\item{invert}{Logical. If \code{TRUE}, the score is calculated as \code{1 - mean(x)}. Defaults to \code{FALSE}.}
+\item{invert}{Logical. If \code{TRUE}, the score is calculated as \code{1 - Score} (deficiency). If \code{FALSE}, returns the raw availability score. Defaults to \code{TRUE}.}
 
 \item{scale}{Logical. If \code{TRUE}, the final scores are min-max scaled between 0 and 1. Defaults to \code{TRUE}.}
+
+\item{lambda}{Optimization method or numeric value. Options:
+\itemize{
+  \item \code{"auto_max"} (Default): Maximizes the variance of the SeqDef scores using a hill-climbing algorithm with a 10\% drop tolerance.
+  \item \code{"by_genus"}: Calculates the median pairwise distance between congeneric species and sets lambda to the phylogenetic half-life.
+  \item \code{Numeric}: A specific numeric value (e.g., 3.5) to fix the decay parameter.
+}}
 }
 \value{
 A list of class \code{"seqdef"} containing:
 \item{tree}{The input phylogenetic tree.}
 \item{seqdef}{A named vector of calculated SeqDef scores.}
 \item{empdata}{The original empirical data column used for calculations.}
+\item{lambda}{The final lambda value used in the calculation.}
 }
 \description{
 This function computes a sequencing deficiency score for tips on a phylogenetic tree.
 It utilizes pairwise cophenetic distances and a data attribute associated with the tips
-to calculate a "concordance" or deficiency metric.
+to calculate a phylogenetically weighted "deficiency" metric.
 }
 \examples{
 \dontrun{
 library(ape)
 # Create a random tree and data
+set.seed(123)
 tree <- rtree(10)
-df <- data.frame(species = tree$tip.label, seqdat = sample(c(0,1), 10, replace = T))
+df <- data.frame(species = tree$tip.label, 
+                 availability = sample(c(0,1), 10, replace = TRUE))
 
-# Run function
-result <- SeqDef(tree, df, data.col = "seqdat")
+# Run function with auto-optimization
+result <- SeqDef(tree, df, data.col = "availability", lambda = "auto_max")
+
+# Run function with biological calibration
+result_bio <- SeqDef(tree, df, data.col = "availability", lambda = "by_genus")
 }
 }
