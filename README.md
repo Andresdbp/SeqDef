@@ -59,8 +59,9 @@ SeqDef defines the Sequencing Deficiency of a focal taxon as the complement of i
 
 ## Citation
 
-Citation
+Developed and maintained by **Dr. Andres Barboza** (andresdbp00@gmail.com).
+
 If you use SeqDef in your research, please cite:
 
-[TBD]
+> Barboza, A. (2026). *SeqDef: An R package for phylogenetically weighted genomic prioritization across the tree of life.* Journal of Evolutionary Biology (in revision).
 
