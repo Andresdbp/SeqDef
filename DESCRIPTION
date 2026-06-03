@@ -1,8 +1,8 @@
 Package: SeqDef
 Title: Calculate Sequencing Deficiency Scores for Phylogenetic Trees
 Version: 0.1.0
-Authors@R: 
-    person("Your", "Name", , "your.email@example.com", role = c("aut", "cre"))
+Authors@R:
+    person("Andres", "Barboza", , "andresdbp00@gmail.com", role = c("aut", "cre"))
 Description: Calculates the SeqDef statistic to quantify the marginal genomic 
     value of individual taxa by weighting the availability of sequence resources 
     in related species using a distance-decay kernel. Includes tools for 
