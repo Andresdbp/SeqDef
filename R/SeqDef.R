@@ -36,6 +36,36 @@
   A[tree$tip.label]                                # input tip order
 }
 
+# Brownian-motion covariance kernel (parameter-free), correlation form, O(n).
+#
+# Weight w_fi = phylogenetic correlation under BM = C_fi / sqrt(C_ff C_ii), with
+# C_fi = shared root-to-MRCA path length and C_ii = root-to-tip depth (w in
+# [0,1], diagonal 1). There is no lambda. Availability A_f = sum_i w_fi s_i is
+# computed in O(n) via the three-point structure: with s'_i = s_i / sqrt(C_ii)
+# and subtree sums S'(v), A_f = (1/sqrt(C_ff)) sum_{v on root->f path} L_v S'(v).
+# For an ultrametric tree this equals the exponential kernel's flat limit,
+# w_fi = 1 - d_fi/(2T) (i.e. the exponential at a fixed small lambda ~ 0.5).
+.seqdef_bm_avail <- function(tree, s) {
+  n   <- length(tree$tip.label)
+  phy <- ape::reorder.phylo(tree, "postorder")
+  E   <- phy$edge; L <- phy$edge.length; nN <- n + phy$Nnode
+  depth <- ape::node.depth.edgelength(phy)         # root-to-node distance
+  dtip  <- depth[seq_len(n)]; dtip[dtip <= 0] <- .Machine$double.eps
+  sp    <- s / sqrt(dtip)                          # s'_i = s_i / sqrt(C_ii)
+
+  Sp <- numeric(nN); Sp[seq_len(n)] <- sp          # subtree sums of s'
+  for (k in seq_len(nrow(E))) Sp[E[k, 1]] <- Sp[E[k, 1]] + Sp[E[k, 2]]
+
+  G <- numeric(nN)                                 # G[v] = sum_{u on root->v} L_u S'(u)
+  for (k in rev(seq_len(nrow(E)))) {
+    p <- E[k, 1]; c <- E[k, 2]
+    G[c] <- G[p] + L[k] * Sp[c]
+  }
+  A <- G[seq_len(n)] / sqrt(dtip)
+  names(A) <- phy$tip.label
+  A[tree$tip.label]
+}
+
 #' Calculate Sequencing Deficiency (SeqDef) Scores
 #'
 #' Computes a sequencing deficiency score for tips on a phylogenetic tree.
@@ -47,6 +77,9 @@
 #' (the exponential of an additive distance factorizes into per-branch factors),
 #' so no n-by-n distance matrix is formed and the method scales to very large
 #' trees. The Gaussian and linear kernels use the dense O(n^2) cophenetic matrix.
+#' The Brownian-motion kernel is a parameter-free, O(n) alternative based on the
+#' phylogenetic correlation (shared ancestry); it is the flat, low-lambda limit
+#' of the exponential kernel.
 #'
 #' @param tree A phylogenetic tree object of class \code{phylo}.
 #' @param df A data frame containing tip labels (col 1) and data (col 2 or \code{data.col}).
@@ -54,16 +87,17 @@
 #' @param invert Logical. If TRUE, returns (1 - Score). Defaults to TRUE.
 #' @param scale Logical. If TRUE, min-max scales result to 0-1. Defaults to TRUE.
 #' @param lambda optimization method ("auto_max", "by_genus") or a numeric value.
-#' @param kernel Distance-decay kernel applied to the normalized cophenetic
-#'   distance: \code{"exponential"} (default; uses the fast O(n) traversal),
-#'   \code{"gaussian"}, or \code{"linear"}. The default reproduces the original
-#'   behaviour.
+#' @param kernel Weighting kernel: \code{"exponential"} (default; distance-decay,
+#'   exact O(n) traversal), \code{"gaussian"} or \code{"linear"} (distance-decay,
+#'   dense O(n^2)), or \code{"brownian"} (parameter-free Brownian-motion
+#'   phylogenetic correlation, O(n); \code{lambda} is ignored). The default
+#'   reproduces the original behaviour.
 #'
 #' @return A list of class \code{"seqdef"} containing the tree, scores, data, and lambda used.
-#' @importFrom ape branching.times cophenetic.phylo keep.tip reorder.phylo
+#' @importFrom ape branching.times cophenetic.phylo keep.tip reorder.phylo node.depth.edgelength
 #' @export
 SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda = "auto_max",
-                   kernel = c("exponential", "gaussian", "linear")){
+                   kernel = c("exponential", "gaussian", "linear", "brownian")){
 
   kernel <- match.arg(kernel)
   # Distance-decay kernel on normalized distance x = d / tree_depth (dense path).
@@ -89,7 +123,7 @@ SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda =
   # 3. Distance matrix only when needed: non-exponential kernels OR by_genus.
   #    The exponential path is matrix-free (O(n)).
   is_bygenus  <- (length(lambda) == 1 && is.character(lambda) && lambda == "by_genus")
-  need_matrix <- (kernel != "exponential") || is_bygenus
+  need_matrix <- (kernel %in% c("gaussian", "linear")) || (is_bygenus && kernel == "exponential")
   norm_dists  <- NULL
   if (need_matrix) {
     dist.matrix <- ape::cophenetic.phylo(tree)
@@ -99,15 +133,17 @@ SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda =
 
   # Raw phylogenetically-weighted availability A for a given lambda.
   avail <- function(lam) {
-    if (kernel == "exponential")
-      .seqdef_exp_avail(tree, s_vec, lam, td)                 # O(n) traversal
-    else
-      as.numeric(kern(norm_dists, lam, kernel) %*% s_vec)     # O(n^2) dense
+    if (kernel == "exponential")   .seqdef_exp_avail(tree, s_vec, lam, td)        # O(n) traversal
+    else if (kernel == "brownian") .seqdef_bm_avail(tree, s_vec)                  # O(n), parameter-free
+    else                           as.numeric(kern(norm_dists, lam, kernel) %*% s_vec)  # O(n^2) dense
   }
 
   # 4. Lambda selection
   final_lambda <- 0
-  if (length(lambda) == 1 && is.character(lambda) && lambda == "auto_max") {
+  if (kernel == "brownian") {
+    if (is.numeric(lambda)) message("Brownian kernel is parameter-free; the supplied lambda is ignored.")
+    final_lambda <- NA_real_
+  } else if (length(lambda) == 1 && is.character(lambda) && lambda == "auto_max") {
     message("Optimizing Lambda: Searching for peak variance (Stopping if variance drops >10% below peak)...")
     lambda_seq <- seq(1, 50, 0.1)
 
