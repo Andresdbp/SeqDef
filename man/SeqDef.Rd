@@ -11,7 +11,7 @@ SeqDef(
   invert = TRUE,
   scale = TRUE,
   lambda = "auto_max",
-  kernel = c("exponential", "gaussian", "linear")
+  kernel = c("exponential", "gaussian", "linear", "brownian")
 )
 }
 \arguments{
@@ -27,10 +27,11 @@ SeqDef(
 
 \item{lambda}{optimization method ("auto_max", "by_genus") or a numeric value.}
 
-\item{kernel}{Distance-decay kernel applied to the normalized cophenetic
-distance: \code{"exponential"} (default; uses the fast O(n) traversal),
-\code{"gaussian"}, or \code{"linear"}. The default reproduces the original
-behaviour.}
+\item{kernel}{Weighting kernel: \code{"exponential"} (default; distance-decay,
+exact O(n) traversal), \code{"gaussian"} or \code{"linear"} (distance-decay,
+dense O(n^2)), or \code{"brownian"} (parameter-free Brownian-motion
+phylogenetic correlation, O(n); \code{lambda} is ignored). The default
+reproduces the original behaviour.}
 }
 \value{
 A list of class \code{"seqdef"} containing the tree, scores, data, and lambda used.
@@ -46,4 +47,7 @@ availability is computed by an exact O(n)-time, O(n)-memory tree traversal
 (the exponential of an additive distance factorizes into per-branch factors),
 so no n-by-n distance matrix is formed and the method scales to very large
 trees. The Gaussian and linear kernels use the dense O(n^2) cophenetic matrix.
+The Brownian-motion kernel is a parameter-free, O(n) alternative based on the
+phylogenetic correlation (shared ancestry); it is the flat, low-lambda limit
+of the exponential kernel.
 }
