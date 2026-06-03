@@ -4,51 +4,38 @@
 \alias{SeqDef}
 \title{Calculate Sequencing Deficiency (SeqDef) Scores}
 \usage{
-SeqDef(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda = "auto_max")
+SeqDef(
+  tree,
+  df,
+  data.col = 2,
+  invert = TRUE,
+  scale = TRUE,
+  lambda = "auto_max",
+  kernel = c("exponential", "gaussian", "linear")
+)
 }
 \arguments{
-\item{tree}{A phylogenetic tree object of class \code{phylo} (from the \code{ape} package).}
+\item{tree}{A phylogenetic tree object of class \code{phylo}.}
 
-\item{df}{A data frame containing tip labels in the first column and the data of interest in \code{data.col}.}
+\item{df}{A data frame containing tip labels (col 1) and data (col 2 or \code{data.col}).}
 
-\item{data.col}{An integer or character string indicating the column index or name in \code{df} containing the numeric data to analyze. Defaults to 2.}
+\item{data.col}{Integer or character. Column index/name for the data. Defaults to 2.}
 
-\item{invert}{Logical. If \code{TRUE}, the score is calculated as \code{1 - Score} (deficiency). If \code{FALSE}, returns the raw availability score. Defaults to \code{TRUE}.}
+\item{invert}{Logical. If TRUE, returns (1 - Score). Defaults to TRUE.}
 
-\item{scale}{Logical. If \code{TRUE}, the final scores are min-max scaled between 0 and 1. Defaults to \code{TRUE}.}
+\item{scale}{Logical. If TRUE, min-max scales result to 0-1. Defaults to TRUE.}
 
-\item{lambda}{Optimization method or numeric value. Options:
-\itemize{
-  \item \code{"auto_max"} (Default): Maximizes the variance of the SeqDef scores using a hill-climbing algorithm with a 10\% drop tolerance.
-  \item \code{"by_genus"}: Calculates the median pairwise distance between congeneric species and sets lambda to the phylogenetic half-life.
-  \item \code{Numeric}: A specific numeric value (e.g., 3.5) to fix the decay parameter.
-}}
+\item{lambda}{optimization method ("auto_max", "by_genus") or a numeric value.}
+
+\item{kernel}{Distance-decay kernel applied to the normalized cophenetic
+distance: \code{"exponential"} (default), \code{"gaussian"}, or
+\code{"linear"}. The default reproduces the original behaviour.}
 }
 \value{
-A list of class \code{"seqdef"} containing:
-\item{tree}{The input phylogenetic tree.}
-\item{seqdef}{A named vector of calculated SeqDef scores.}
-\item{empdata}{The original empirical data column used for calculations.}
-\item{lambda}{The final lambda value used in the calculation.}
+A list of class \code{"seqdef"} containing the tree, scores, data, and lambda used.
 }
 \description{
-This function computes a sequencing deficiency score for tips on a phylogenetic tree.
-It utilizes pairwise cophenetic distances and a data attribute associated with the tips
-to calculate a phylogenetically weighted "deficiency" metric.
-}
-\examples{
-\dontrun{
-library(ape)
-# Create a random tree and data
-set.seed(123)
-tree <- rtree(10)
-df <- data.frame(species = tree$tip.label, 
-                 availability = sample(c(0,1), 10, replace = TRUE))
-
-# Run function with auto-optimization
-result <- SeqDef(tree, df, data.col = "availability", lambda = "auto_max")
-
-# Run function with biological calibration
-result_bio <- SeqDef(tree, df, data.col = "availability", lambda = "by_genus")
-}
+Computes a sequencing deficiency score for tips on a phylogenetic tree.
+It utilizes pairwise cophenetic distances and a data attribute to calculate
+a phylogenetically weighted "deficiency" metric.
 }

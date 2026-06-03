@@ -13,37 +13,19 @@ calc_priority(
 )
 }
 \arguments{
-\item{seqdef_res}{A list object returned by the \code{SeqDef()} function. Must contain \code{$seqdef} (the scores).}
+\item{seqdef_res}{A list containing \code{$seqdef} scores (output from \code{SeqDef}).}
 
-\item{trait_values}{A named numeric vector or a two-column data frame containing the external values for weighting (e.g., IUCN status, commercial value). Names (or the first column) must match the tip labels in the tree.}
+\item{trait_values}{Named vector or data frame of external weights.}
 
-\item{model}{Character string specifying the combination model:
-\describe{
-  \item{"exponential"}{(Default) \eqn{Priority = SeqDef \times base^{Value}}. Heavily penalizes low-value traits. Used in the EDGE-like \eqn{2^{GE}} approach.}
-  \item{"linear"}{\eqn{Priority = SeqDef \times Value}. Standard weighted product.}
-  \item{"additive"}{\eqn{Priority = SeqDef + Value}. Useful when traits and SeqDef are on similar scales.}
-}}
+\item{model}{"exponential" (default), "linear", or "additive".}
 
-\item{base}{Numeric. The base for the exponential model (default = 2). Only used if \code{model = "exponential"}.}
+\item{base}{Base for exponential model (default 2).}
 
-\item{na.fill}{Numeric. Value to replace missing trait values with (default = 0).}
+\item{na.fill}{Value to replace NAs with (default 0).}
 }
 \value{
-A named numeric vector of priority scores, sorted by the tree tip labels.
+A named numeric vector of priority scores.
 }
 \description{
-Combines SeqDef genomic deficiency scores with an external weighting variable 
-(e.g., IUCN status, economic importance) to produce a composite priority ranking.
-}
-\examples{
-\dontrun{
-# 1. Run SeqDef
-res <- SeqDef(tree, data)
-
-# 2. Define IUCN Scores (0-4)
-iucn_scores <- c("Species_A" = 4, "Species_B" = 0)
-
-# 3. Calculate Priority (Exponential: SeqDef * 2^IUCN)
-prio <- calc_priority(res, iucn_scores, model = "exponential", base = 2)
-}
+Combines SeqDef scores with external weighting variables (e.g., IUCN status).
 }

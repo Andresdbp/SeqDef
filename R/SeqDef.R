@@ -10,12 +10,26 @@
 #' @param invert Logical. If TRUE, returns (1 - Score). Defaults to TRUE.
 #' @param scale Logical. If TRUE, min-max scales result to 0-1. Defaults to TRUE.
 #' @param lambda optimization method ("auto_max", "by_genus") or a numeric value.
+#' @param kernel Distance-decay kernel applied to the normalized cophenetic
+#'   distance: \code{"exponential"} (default), \code{"gaussian"}, or
+#'   \code{"linear"}. The default reproduces the original behaviour.
 #'
 #' @return A list of class \code{"seqdef"} containing the tree, scores, data, and lambda used.
 #' @importFrom ape branching.times cophenetic.phylo keep.tip
 #' @export
-SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda = "auto_max"){
-  
+SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda = "auto_max",
+                   kernel = c("exponential", "gaussian", "linear")){
+
+  kernel <- match.arg(kernel)
+  # Distance-decay kernel on normalized distance x = d / tree_depth.
+  # All three kernels are monotone non-increasing in x; lambda sets the scale.
+  kern <- function(x, lam, type) {
+    switch(type,
+           exponential = exp(-lam * x),
+           gaussian    = exp(-lam * x^2),
+           linear      = { z <- 1 - lam * x; z * (z > 0) })  # clamp at 0, preserve matrix dims
+  }
+
   # 1. Convert & Align Data
   df <- as.data.frame(df)
   
@@ -48,7 +62,7 @@ SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda =
     max_var <- -1
     
     calc_var <- function(x) {
-      w_mat <- exp(-x * norm_dists)
+      w_mat <- kern(norm_dists, x, kernel)
       raw_scores <- as.numeric(w_mat %*% s_vec)
       rng <- range(raw_scores)
       if(rng[2] - rng[1] < 1e-9) return(0)
@@ -105,7 +119,7 @@ SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda =
   }
   
   # 4. Calculation
-  dist.prop <- exp(-final_lambda * dist.matrix / td)
+  dist.prop <- kern(dist.matrix / td, final_lambda, kernel)
   raw_scores <- dist.prop %*% as.numeric(df[, data.col])
   synscores <- as.vector(raw_scores)
   names(synscores) <- tree$tip.label
