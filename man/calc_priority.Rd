@@ -15,7 +15,8 @@ calc_priority(
 \arguments{
 \item{seqdef_res}{A list containing \code{$seqdef} scores (output from \code{SeqDef}).}
 
-\item{trait_values}{Named vector or data frame of external weights.}
+\item{trait_values}{Named vector (names matching taxa in \code{seqdef_res$seqdef})
+or a data frame with taxon names in column 1 and weights in column 2.}
 
 \item{model}{"exponential" (default), "linear", or "additive".}
 

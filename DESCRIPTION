@@ -1,6 +1,6 @@
 Package: SeqDef
 Title: Calculate Sequencing Deficiency Scores for Phylogenetic Trees
-Version: 0.1.0
+Version: 0.1.1
 Authors@R:
     person("Andres", "Barboza", , "andresdbp00@gmail.com", role = c("aut", "cre"))
 Description: Calculates the SeqDef statistic to quantify the marginal genomic 
@@ -9,21 +9,17 @@ Description: Calculates the SeqDef statistic to quantify the marginal genomic
     prioritization and sensitivity analysis.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Imports: 
     ape,
     stats
 Suggests: 
-    knitr,
-    rmarkdown,
-    testthat,
+    testthat (>= 3.0.0),
     ggplot2,
     ggtree,
-    tidyverse,
     patchwork,
     phangorn,
     iucnredlist,
     rentrez
-VignetteBuilder: knitr
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0

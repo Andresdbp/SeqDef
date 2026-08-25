@@ -8,16 +8,25 @@
 # no n x n distance matrix is formed. This is EXACT (identical to the dense
 # computation) and is specific to the exponential kernel (the only one of the
 # three that factorizes into independent per-branch factors).
-.seqdef_exp_avail <- function(tree, s, lambda, td) {
+
+# Precompute the lambda-independent parts of the exponential traversal
+# (postorder edge ordering). Hoisting this out of the per-lambda loop avoids
+# repeating reorder.phylo/name matching on every lambda evaluation.
+.seqdef_exp_prep <- function(tree) {
   n   <- length(tree$tip.label)
   phy <- ape::reorder.phylo(tree, "postorder")   # children before parents
-  E   <- phy$edge
-  phi <- exp(-lambda * phy$edge.length / td)      # per-edge transmission factor
-  nN  <- n + phy$Nnode
+  list(n = n, E = phy$edge, elen = phy$edge.length,
+       nN = n + phy$Nnode, tip.label = phy$tip.label)
+}
+
+.seqdef_exp_avail_prep <- function(prep, s, lambda, td) {
+  n   <- prep$n
+  E   <- prep$E
+  phi <- exp(-lambda * prep$elen / td)            # per-edge transmission factor
 
   # Up-sweep (post-order): Down[v] = sum over leaves below v of s_i * (product of
   # phi from v down to i). Leaves: Down = s. Internal: sum_children phi * Down.
-  Down <- numeric(nN)
+  Down <- numeric(prep$nN)
   Down[seq_len(n)] <- s
   for (k in seq_len(nrow(E))) {
     Down[E[k, 1]] <- Down[E[k, 1]] + phi[k] * Down[E[k, 2]]
@@ -25,15 +34,19 @@
 
   # Down-sweep (pre-order): Up[v] = signal from everything NOT below v, at v.
   # Up[child] = phi * (Up[parent] + Down[parent] - phi * Down[child]).
-  Up <- numeric(nN)                                # Up[root] = 0
+  Up <- numeric(prep$nN)                          # Up[root] = 0
   for (k in rev(seq_len(nrow(E)))) {
     p <- E[k, 1]; c <- E[k, 2]
     Up[c] <- phi[k] * (Up[p] + Down[p] - phi[k] * Down[c])
   }
 
-  A <- Down[seq_len(n)] + Up[seq_len(n)]           # tip f: A_f = s_f + Up[f]
-  names(A) <- phy$tip.label
-  A[tree$tip.label]                                # input tip order
+  A <- Down[seq_len(n)] + Up[seq_len(n)]          # tip f: A_f = s_f + Up[f]
+  names(A) <- prep$tip.label                      # tip numbering unchanged by reorder
+  A
+}
+
+.seqdef_exp_avail <- function(tree, s, lambda, td) {
+  .seqdef_exp_avail_prep(.seqdef_exp_prep(tree), s, lambda, td)
 }
 
 # Brownian-motion covariance kernel (parameter-free), correlation form, O(n).
@@ -66,6 +79,36 @@
   A[tree$tip.label]
 }
 
+# Intra-genus normalized cophenetic distances for the "by_genus" calibration.
+# Size-aware: up to `dense_cutoff` tips (or when a dense cophenetic matrix is
+# already available from the kernel computation) a single dense matrix is
+# fastest; above the cutoff the O(n^2) memory is prohibitive, so distances are
+# computed per genus on extracted subtrees (identical values, O(n) memory).
+.seqdef_intra_genus_dists <- function(tree, td, dist.matrix = NULL,
+                                      dense_cutoff = 4000) {
+  genera <- sapply(strsplit(tree$tip.label, "[_ ]"), `[`, 1)
+  use_dense <- !is.null(dist.matrix) ||
+    length(tree$tip.label) <= dense_cutoff
+  if (use_dense && is.null(dist.matrix)) {
+    dist.matrix <- ape::cophenetic.phylo(tree)
+  }
+  intra_genus_dists <- c()
+  for (g in unique(genera)) {
+    tips_in_genus <- tree$tip.label[genera == g]
+    if (length(tips_in_genus) > 1) {
+      if (use_dense) {
+        sub_mat <- dist.matrix[tips_in_genus, tips_in_genus]
+      } else {
+        sub_mat <- ape::cophenetic.phylo(ape::keep.tip(tree, tips_in_genus))
+      }
+      d_vals <- sub_mat[lower.tri(sub_mat)]
+      d_vals <- d_vals[d_vals > 0]
+      intra_genus_dists <- c(intra_genus_dists, d_vals / td)
+    }
+  }
+  intra_genus_dists
+}
+
 #' Calculate Sequencing Deficiency (SeqDef) Scores
 #'
 #' Computes a sequencing deficiency score for tips on a phylogenetic tree.
@@ -81,7 +124,14 @@
 #' phylogenetic correlation (shared ancestry); it is the flat, low-lambda limit
 #' of the exponential kernel.
 #'
-#' @param tree A phylogenetic tree object of class \code{phylo}.
+#' Distances are normalized by the tree depth (the maximum root-to-tip path
+#' length), which is well defined for both ultrametric and non-ultrametric
+#' trees. Input data are validated: the tree must have branch lengths, the
+#' data column must be numeric (factors are converted via their labels, never
+#' their level codes) and free of NAs, taxon labels in \code{df} must overlap
+#' \code{tree$tip.label}, and duplicated taxa or dropped tips are reported.
+#'
+#' @param tree A phylogenetic tree object of class \code{phylo} with branch lengths.
 #' @param df A data frame containing tip labels (col 1) and data (col 2 or \code{data.col}).
 #' @param data.col Integer or character. Column index/name for the data. Defaults to 2.
 #' @param invert Logical. If TRUE, returns (1 - Score). Defaults to TRUE.
@@ -93,49 +143,80 @@
 #'   phylogenetic correlation, O(n); \code{lambda} is ignored). The default
 #'   reproduces the original behaviour.
 #'
-#' @return A list of class \code{"seqdef"} containing the tree, scores, data, and lambda used.
-#' @importFrom ape branching.times cophenetic.phylo keep.tip reorder.phylo node.depth.edgelength
+#' @return A list of class \code{"seqdef"} containing the tree, scores, data
+#'   (the numeric vector actually used for scoring, in tip order), and lambda used.
+#' @importFrom ape cophenetic.phylo keep.tip reorder.phylo node.depth.edgelength
+#' @importFrom stats var median
 #' @export
 SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda = "auto_max",
                    kernel = c("exponential", "gaussian", "linear", "brownian")){
 
   kernel <- match.arg(kernel)
-  # Distance-decay kernel on normalized distance x = d / tree_depth (dense path).
-  kern <- function(x, lam, type) {
-    switch(type,
-           exponential = exp(-lam * x),
-           gaussian    = exp(-lam * x^2),
-           linear      = { z <- 1 - lam * x; z * (z > 0) })  # clamp at 0, preserve matrix dims
-  }
 
-  # 1. Convert & Align Data
+  # 1. Validate & Align Data
+  if (!inherits(tree, "phylo")) stop("'tree' must be an object of class 'phylo'.")
+  if (is.null(tree$edge.length)) {
+    stop("'tree' has no branch lengths; SeqDef requires a tree with edge lengths.")
+  }
   df <- as.data.frame(df)
+  if (anyDuplicated(df[, 1]) > 0) {
+    warning("Duplicated taxon labels in df[, 1]; only the first row for each taxon is used.")
+    df <- df[!duplicated(df[, 1]), ]
+  }
   common_taxa <- intersect(tree$tip.label, df[, 1])
+  if (length(common_taxa) == 0) {
+    stop("No taxa shared between tree$tip.label and df[, 1]. ",
+         "Check that labels use the same formatting (e.g. spaces vs underscores).")
+  }
   if (length(common_taxa) < length(tree$tip.label)) {
+    message(sprintf("Dropping %d tip(s) not present in df[, 1].",
+                    length(tree$tip.label) - length(common_taxa)))
     tree <- ape::keep.tip(tree, common_taxa)
   }
   df <- df[match(tree$tip.label, df[, 1]), ]
-  s_vec <- as.numeric(df[[data.col]])
-
-  # 2. Tree depth (normalizes distances to a relative scale)
-  td <- max(ape::branching.times(tree))
-
-  # 3. Distance matrix only when needed: non-exponential kernels OR by_genus.
-  #    The exponential path is matrix-free (O(n)).
-  is_bygenus  <- (length(lambda) == 1 && is.character(lambda) && lambda == "by_genus")
-  need_matrix <- (kernel %in% c("gaussian", "linear")) || (is_bygenus && kernel == "exponential")
-  norm_dists  <- NULL
-  if (need_matrix) {
-    dist.matrix <- ape::cophenetic.phylo(tree)
-    dist.matrix <- dist.matrix[tree$tip.label, tree$tip.label]
-    norm_dists  <- dist.matrix / td
+  s_raw <- df[[data.col]]
+  if (is.factor(s_raw)) s_raw <- as.character(s_raw)  # use labels, never level codes
+  s_vec <- suppressWarnings(as.numeric(s_raw))
+  if (anyNA(s_vec)) {
+    bad <- tree$tip.label[is.na(s_vec)]
+    stop(sprintf("The data column contains %d NA or non-numeric value(s) (e.g. %s); SeqDef requires complete numeric data.",
+                 length(bad), paste(bad[seq_len(min(5, length(bad)))], collapse = ", ")))
   }
+
+  # 2. Tree depth (normalizes distances to a relative scale). The maximum
+  #    root-to-tip depth is correct for both ultrametric and non-ultrametric
+  #    trees (branching.times() assumes ultrametric trees).
+  td <- max(ape::node.depth.edgelength(tree))
+  if (!is.finite(td) || td <= 0) {
+    stop("Tree depth is zero or undefined; check the tree's edge lengths.")
+  }
+
+  # 3. Dense matrices only when the kernel needs them (gaussian/linear).
+  #    The exponential and brownian paths are matrix-free (O(n)).
+  is_bygenus  <- (length(lambda) == 1 && is.character(lambda) && lambda == "by_genus")
+  need_matrix <- kernel %in% c("gaussian", "linear")
+  dist.matrix   <- NULL
+  norm_dists    <- NULL
+  norm_dists_sq <- NULL
+  if (need_matrix) {
+    dist.matrix <- ape::cophenetic.phylo(tree)     # already in tip.label order
+    norm_dists  <- dist.matrix / td
+    if (kernel == "gaussian") norm_dists_sq <- norm_dists^2  # hoisted out of the lambda loop
+  }
+  exp_prep <- if (kernel == "exponential") .seqdef_exp_prep(tree) else NULL
 
   # Raw phylogenetically-weighted availability A for a given lambda.
   avail <- function(lam) {
-    if (kernel == "exponential")   .seqdef_exp_avail(tree, s_vec, lam, td)        # O(n) traversal
-    else if (kernel == "brownian") .seqdef_bm_avail(tree, s_vec)                  # O(n), parameter-free
-    else                           as.numeric(kern(norm_dists, lam, kernel) %*% s_vec)  # O(n^2) dense
+    if (kernel == "exponential") {
+      .seqdef_exp_avail_prep(exp_prep, s_vec, lam, td)       # O(n) traversal
+    } else if (kernel == "brownian") {
+      .seqdef_bm_avail(tree, s_vec)                          # O(n), parameter-free
+    } else if (kernel == "gaussian") {
+      as.numeric(exp(-lam * norm_dists_sq) %*% s_vec)        # O(n^2) dense
+    } else {                                                 # linear, clamped at 0
+      z <- 1 - lam * norm_dists
+      as.numeric((z * (z > 0)) %*% s_vec)
+    }
   }
 
   # 4. Lambda selection
@@ -144,8 +225,15 @@ SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda =
     if (is.numeric(lambda)) message("Brownian kernel is parameter-free; the supplied lambda is ignored.")
     final_lambda <- NA_real_
   } else if (length(lambda) == 1 && is.character(lambda) && lambda == "auto_max") {
-    message("Optimizing Lambda: Searching for peak variance (Stopping if variance drops >10% below peak)...")
     lambda_seq <- seq(1, 50, 0.1)
+    if (length(unique(s_vec)) < 2) {
+      warning("The data column has no variation (all values identical), so lambda ",
+              "cannot be optimized by variance ('auto_max'); using lambda = ",
+              lambda_seq[1], ". Supply a numeric lambda or use lambda = 'by_genus' ",
+              "to control this directly.")
+      final_lambda <- lambda_seq[1]
+    } else {
+    message("Optimizing Lambda: Searching for peak variance (Stopping if variance drops >10% below peak)...")
 
     calc_var <- function(x) {
       raw <- avail(x)
@@ -161,25 +249,16 @@ SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda =
       if (curr_var > max_var) {
         max_var <- curr_var
         best_lambda <- lam
-      } else if ((max_var - curr_var) / max_var > 0.10) {
+      } else if (max_var > 0 && (max_var - curr_var) / max_var > 0.10) {
         break
       }
     }
     final_lambda <- best_lambda
     message(sprintf("Selected Lambda: %.1f (Peak Variance: %.5f)", final_lambda, max_var))
+    }
 
   } else if (is_bygenus) {
-    genera <- sapply(strsplit(tree$tip.label, "[_ ]"), `[`, 1)
-    intra_genus_dists <- c()
-    for (g in unique(genera)) {
-      tips_in_genus <- tree$tip.label[genera == g]
-      if (length(tips_in_genus) > 1) {
-        sub_mat <- dist.matrix[tips_in_genus, tips_in_genus]
-        d_vals <- sub_mat[lower.tri(sub_mat)]
-        d_vals <- d_vals[d_vals > 0]
-        intra_genus_dists <- c(intra_genus_dists, d_vals / td)
-      }
-    }
+    intra_genus_dists <- .seqdef_intra_genus_dists(tree, td, dist.matrix = dist.matrix)
     if (length(intra_genus_dists) > 0) {
       median_dist <- median(intra_genus_dists)
       final_lambda <- log(2) / median_dist
@@ -199,11 +278,11 @@ SeqDef <- function(tree, df, data.col = 2, invert = TRUE, scale = TRUE, lambda =
   names(synscores) <- tree$tip.label
   if (scale) {
     rng <- max(synscores, na.rm = TRUE) - min(synscores, na.rm = TRUE)
-    if (rng == 0) synscores[] <- 0 else synscores <- (synscores - min(synscores, na.rm = TRUE)) / rng
+    if (rng < 1e-9) synscores[] <- 0 else synscores <- (synscores - min(synscores, na.rm = TRUE)) / rng
   }
   if (invert) synscores <- 1 - synscores
 
-  results <- list(tree = tree, seqdef = synscores, empdata = df[, data.col], lambda = final_lambda)
+  results <- list(tree = tree, seqdef = synscores, empdata = s_vec, lambda = final_lambda)
   class(results) <- "seqdef"
   return(results)
 }
