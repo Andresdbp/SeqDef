@@ -15,7 +15,7 @@ SeqDef(
 )
 }
 \arguments{
-\item{tree}{A phylogenetic tree object of class \code{phylo}.}
+\item{tree}{A phylogenetic tree object of class \code{phylo} with branch lengths.}
 
 \item{df}{A data frame containing tip labels (col 1) and data (col 2 or \code{data.col}).}
 
@@ -34,7 +34,8 @@ phylogenetic correlation, O(n); \code{lambda} is ignored). The default
 reproduces the original behaviour.}
 }
 \value{
-A list of class \code{"seqdef"} containing the tree, scores, data, and lambda used.
+A list of class \code{"seqdef"} containing the tree, scores, data
+(the numeric vector actually used for scoring, in tip order), and lambda used.
 }
 \description{
 Computes a sequencing deficiency score for tips on a phylogenetic tree.
@@ -50,4 +51,11 @@ trees. The Gaussian and linear kernels use the dense O(n^2) cophenetic matrix.
 The Brownian-motion kernel is a parameter-free, O(n) alternative based on the
 phylogenetic correlation (shared ancestry); it is the flat, low-lambda limit
 of the exponential kernel.
+
+Distances are normalized by the tree depth (the maximum root-to-tip path
+length), which is well defined for both ultrametric and non-ultrametric
+trees. Input data are validated: the tree must have branch lengths, the
+data column must be numeric (factors are converted via their labels, never
+their level codes) and free of NAs, taxon labels in \code{df} must overlap
+\code{tree$tip.label}, and duplicated taxa or dropped tips are reported.
 }

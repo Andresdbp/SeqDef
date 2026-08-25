@@ -2,8 +2,14 @@
 
 export(SeqDef)
 export(calc_priority)
-importFrom(ape,branching.times)
-importFrom(ape,cophenetic.phylo)
-importFrom(ape,keep.tip)
-importFrom(ape,node.depth.edgelength)
-importFrom(ape,reorder.phylo)
+importFrom(ape,
+  cophenetic.phylo,
+  keep.tip,
+  node.depth.edgelength,
+  reorder.phylo
+)
+importFrom(stats,
+  median,
+  setNames,
+  var
+)
