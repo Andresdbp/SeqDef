@@ -34,28 +34,67 @@ phylogenetic correlation, O(n); \code{lambda} is ignored). The default
 reproduces the original behaviour.}
 }
 \value{
-A list of class \code{"seqdef"} containing the tree, scores, data
-(the numeric vector actually used for scoring, in tip order), and lambda used.
+A list of class \code{"seqdef"}: \code{tree} (the pruned tree),
+\code{seqdef} (named scores), \code{availability} (named, unnormalised
+\eqn{A_f}), \code{empdata} (the numeric data vector actually used for
+scoring, in tip order), \code{lambda} (the value used; \code{NA} for the
+Brownian kernel), \code{kernel}, and \code{tree_depth} (\eqn{T}).
 }
 \description{
-Computes a sequencing deficiency score for tips on a phylogenetic tree.
-It utilizes pairwise cophenetic distances and a data attribute to calculate
-a phylogenetically weighted "deficiency" metric.
+Computes a sequencing-deficiency score for every tip of a phylogeny from a
+per-tip sequence-availability score \eqn{S_i \in [0, 1]}. The
+phylogenetically weighted availability of a focal tip \eqn{f} is
+\eqn{A_f = \sum_i w_{fi} S_i}, where \eqn{w_{fi}} is a kernel of the
+patristic (cophenetic) distance \eqn{d_{fi}} divided by the tree depth
+\eqn{T} (the maximum root-to-tip path length). On an ultrametric tree
+\eqn{x = d_{fi}/T} lies in \eqn{[0, 2]}. SeqDef is the complement of the
+min-max rescaled availability, \eqn{1 - (A_f - \min A)/(\max A - \min A)}.
 }
 \details{
-For the (default) exponential kernel the phylogenetically weighted
-availability is computed by an exact O(n)-time, O(n)-memory tree traversal
-(the exponential of an additive distance factorizes into per-branch factors),
-so no n-by-n distance matrix is formed and the method scales to very large
-trees. The Gaussian and linear kernels use the dense O(n^2) cophenetic matrix.
-The Brownian-motion kernel is a parameter-free, O(n) alternative based on the
-phylogenetic correlation (shared ancestry); it is the flat, low-lambda limit
-of the exponential kernel.
+\strong{Kernels.} For the (default) exponential kernel
+\eqn{w = e^{-\lambda x}} the availability is computed by an exact
+O(n)-time, O(n)-memory tree traversal (the exponential of an additive
+distance factorizes into per-branch factors), so no n-by-n distance matrix
+is formed and the method scales to very large trees. The Gaussian
+(\eqn{e^{-\lambda x^2}}) and linear (\eqn{\max(0, 1 - \lambda x)})
+kernels use the dense O(n^2) cophenetic matrix. The Brownian-motion kernel
+uses the phylogenetic correlation \eqn{C_{fi}/\sqrt{C_{ff} C_{ii}}}
+(O(n), parameter-free); on an ultrametric tree it equals
+\eqn{1 - d_{fi}/(2T)}, i.e. exactly the linear kernel with
+\eqn{\lambda = 0.5}. As \eqn{\lambda} grows, the exponential-kernel
+ranking converges on the ranking by distance to the nearest tip with data.
 
-Distances are normalized by the tree depth (the maximum root-to-tip path
-length), which is well defined for both ultrametric and non-ultrametric
-trees. Input data are validated: the tree must have branch lengths, the
-data column must be numeric (factors are converted via their labels, never
-their level codes) and free of NAs, taxon labels in \code{df} must overlap
-\code{tree$tip.label}, and duplicated taxa or dropped tips are reported.
+\strong{Ties within clades without data.} On an ultrametric tree every tip
+of a clade that contains no tip with \eqn{S > 0} is equidistant from all
+tips with data, so all of them receive the same \eqn{A_f} and SeqDef.
+SeqDef therefore ranks \emph{lineages} that lack data; species within such
+a lineage are separated only by additional criteria, such as the trait
+supplied to \code{\link{calc_priority}}.
+
+\strong{Normalisation.} Min-max scaling (\code{scale = TRUE}) is a
+within-tree rescaling for ranking and display. Each scaled score is relative
+to the best- and least-covered tips of \emph{that} tree, so adding a single
+genome can change every scaled score, and scaled scores are not comparable
+across trees or data snapshots. The unnormalised availability \eqn{A_f} is
+always returned in \code{$availability} for such comparisons. If all
+\eqn{A_f} are equal (e.g. no tip has data) the min-max denominator is zero:
+the scaled availability is then set to 0 (SeqDef = 1 for every tip) and a
+warning is issued.
+
+\strong{Trees and data.} Input data are validated: the tree must have branch
+lengths, the data column must be numeric (factors are converted via their
+labels, never their level codes) and free of NAs, taxon labels in \code{df}
+must overlap \code{tree$tip.label}, and duplicated taxa or dropped tips are
+reported. Polytomies are handled exactly by all kernels. Non-ultrametric
+trees are accepted; the kernels then act on patristic distances, so lineages
+with longer branches appear more isolated and the within-clade ties
+described above need not hold exactly.
+}
+\examples{
+set.seed(1)
+tr <- ape::rcoal(20)
+dat <- data.frame(species = tr$tip.label, genome = rbinom(20, 1, 0.3))
+res <- SeqDef(tr, dat, lambda = 3)
+head(sort(res$seqdef, decreasing = TRUE))
+head(res$availability)
 }

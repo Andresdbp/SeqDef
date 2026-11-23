@@ -30,3 +30,11 @@ A named numeric vector of priority scores.
 \description{
 Combines SeqDef scores with external weighting variables (e.g., IUCN status).
 }
+\details{
+With \code{model = "exponential"}, Priority = SeqDef x base^trait.
+Because base^trait can span a much wider range than SeqDef (1 to 16 for
+IUCN weights 0-4 with base 2, versus SeqDef between 0 and 1), the trait usually
+orders taxa between trait classes and SeqDef orders them within a class.
+Report SeqDef alongside Priority so its contribution is visible, and use
+a smaller \code{base} to give SeqDef more weight.
+}

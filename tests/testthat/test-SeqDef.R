@@ -57,7 +57,8 @@ test_that("all-equal data still works with a fixed numeric lambda", {
   star <- ape::stree(8, type = "star")
   star$edge.length <- rep(1, nrow(star$edge))
   df2 <- data.frame(species = star$tip.label, availability = rep(1, 8))
-  res2 <- suppressMessages(SeqDef(star, df2, lambda = 3, invert = FALSE))
+  expect_warning(res2 <- suppressMessages(SeqDef(star, df2, lambda = 3, invert = FALSE)),
+                 "same phylogenetically weighted availability")
   expect_false(anyNA(res2$seqdef))
   expect_true(all(res2$seqdef == 0))
 })

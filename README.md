@@ -57,11 +57,31 @@ head(sort(final_priority, decreasing = TRUE))
 
 SeqDef defines the Sequencing Deficiency of a focal taxon as the complement of its phylogenetically weighted data availability. The weight between any two species decays exponentially with evolutionary distance.The package solves the problem of "arbitrary parameter choice" by optimizing the decay parameter ($\lambda$) to fit the specific topology and data distribution of the user's clade.
 
+## Behaviour worth knowing
+
+- **Lineages, not species.** On an ultrametric tree, every tip of a clade that contains no tip with
+  data is equidistant from all tips with data, so all of them receive the same score. SeqDef ranks
+  data-deficient *lineages*; use a second criterion (e.g. `calc_priority()` with a trait) to choose
+  species within a lineage.
+- **Horizon.** As `lambda` grows, SeqDef converges on the ranking by distance to the nearest
+  sequenced relative; smaller `lambda` also counts how many sequenced relatives lie within the horizon.
+- **Kernels.** On an ultrametric tree the Brownian kernel equals the linear kernel with `lambda = 0.5`.
+- **Normalisation.** `$seqdef` is min-max rescaled *within* the tree, so it is not comparable across
+  trees or data snapshots; use the unnormalised `$availability` for such comparisons. If no tip has
+  data, every tip gets SeqDef = 1 (with a warning).
+- **Trees.** Branch lengths are required; polytomies and non-ultrametric trees are supported.
+
+## Testing and licence
+
+SeqDef is released under the MIT licence (see `LICENSE`). `tests/testthat` checks that the O(n) exponential and Brownian traversals equal the full
+distance-matrix calculation on random ultrametric and non-ultrametric trees (binary and continuous S,
+polytomies), and covers the edge cases above. Run with `devtools::test()`.
+
 ## Citation
 
 Developed and maintained by **Dr. Andres Barboza** (andresdbp00@gmail.com).
 
 If you use SeqDef in your research, please cite:
 
-> Barboza, A. (2026). *SeqDef: An R package for phylogenetically weighted genomic prioritization across the tree of life.* Journal of Evolutionary Biology (in revision).
+> Barboza, A. (2026). *SeqDef: an R package for phylogenetically weighted prioritization of genome-sequencing targets.* Journal of Evolutionary Biology (in revision). Software: SeqDef v0.2.0, https://github.com/Andresdbp/SeqDef.
 

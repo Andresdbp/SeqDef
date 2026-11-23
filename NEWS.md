@@ -1,3 +1,35 @@
+# SeqDef 0.2.0
+
+## New features
+
+* `SeqDef()` now also returns the unnormalised phylogenetically weighted
+  availability (`$availability`, A_f), the kernel used (`$kernel`) and the tree
+  depth used to normalise distances (`$tree_depth`). Min-max scaled scores are
+  relative to the tree analysed, so `$availability` is the quantity to compare
+  across trees or data snapshots.
+
+## Behaviour and documentation
+
+* When every tip has the same availability (e.g. no tip has data) the min-max
+  denominator is zero; scaled availability is set to 0 (SeqDef = 1 for every
+  tip) as before, but a warning now says so.
+* A numeric `lambda` must be a single positive number.
+* Documentation now states: (i) on an ultrametric tree all tips of a clade
+  without data receive the same score, so SeqDef ranks lineages and a second
+  criterion (e.g. `calc_priority()`) separates species within them;
+  (ii) normalised distances d/T lie in [0, 2]; (iii) the Brownian kernel equals
+  the linear kernel with lambda = 0.5 on an ultrametric tree; (iv) large lambda
+  reproduces the ranking by distance to the nearest tip with data; (v) min-max
+  scaling is a within-tree rescaling; (vi) how `calc_priority()`'s base
+  controls the weight of the trait.
+
+## Tests
+
+* New tests: O(n) exponential and Brownian traversals versus the full-matrix
+  calculation (ultrametric and non-ultrametric trees, continuous data,
+  polytomies), the Brownian/linear(0.5) identity, clade-level ties, the
+  returned availability, the no-data case, and the large-lambda limit.
+
 # SeqDef 0.1.1
 
 ## Bug fixes
